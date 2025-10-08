@@ -78,7 +78,7 @@ public partial class ExamplePlugin : BasePlugin
 {
     public override void Load()
     {
-        Logger.LogInfo($"Plugin {Name} version {Version} is loaded!");
+        Logger.LogInfo($"Plugin {NAME} version {VERSION} is loaded!");
     }
 }
 ```
