@@ -40,8 +40,10 @@ jobs:
           dotnet-version: 9.x
 
       - name: Run the Cake script
-        uses: cake-build/cake-action@v1
+        uses: cake-build/cake-action@v3
         with:
+          arguments: |
+            skip-ci-version: true
           verbosity: Diagnostic
 
       - uses: actions/upload-artifact@v4

@@ -1,4 +1,5 @@
 var target = Argument("target", "Build");
+var skipCiVersion = Argument("skip-ci-version", false);
 
 var workflow = BuildSystem.GitHubActions.Environment.Workflow;
 var buildId = workflow.RunNumber;
@@ -13,11 +14,11 @@ Task("Build")
         MSBuildSettings = new DotNetMSBuildSettings(),
     };
 
-    if (tag != null) 
+    if (tag != null)
     {
         settings.MSBuildSettings.Version = tag;
     }
-    else if (buildId != 0)
+    else if (buildId != 0 && !skipCiVersion)
     {
         settings.MSBuildSettings.VersionSuffix = "ci." + buildId;
     }
