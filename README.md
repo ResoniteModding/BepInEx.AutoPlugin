@@ -1,26 +1,28 @@
 # BepInEx.AutoPlugin
 
-[![NuGet](https://img.shields.io/nuget/v/Hamunii.BepInEx.AutoPlugin?style=for-the-badge&logo=nuget)](https://www.nuget.org/packages/Hamunii.BepInEx.AutoPlugin)
-
 BepInEx.AutoPlugin is an incremental C# source generator that takes the following properties from your project:
 
 ```xml
 <PropertyGroup>
-  <AssemblyName>com.example.ExamplePlugin</AssemblyName>
-  <AssemblyTitle>ExamplePlugin</AssemblyTitle>
+  <PackageId>com.example.ExamplePlugin</PackageId>
+  <Product>ExamplePlugin</Product>
   <Version>0.1.0</Version>
+  <Authors>AuthorName, OtherAuthor</Authors>
+  <RepositoryUrl>https://github.com/example/ExamplePlugin</RepositoryUrl>
 </PropertyGroup>
 ```
 
 And generates a partial class for your partial plugin class decorated with the `BepInAutoPluginAttribute`, decorating the generated class with the `BepInPluginAttribute` using the above properties:
 
 ```cs
-[BepInEx.BepInPlugin(ExamplePlugin.Id, "ExamplePlugin", "0.1.0")]
+[BepInExResoniteShim.ResonitePlugin(ExamplePlugin.GUID, ExamplePlugin.NAME, ExamplePlugin.VERSION, ExamplePlugin.AUTHORS, ExamplePlugin.REPOSITORY_URL)]
 partial class ExamplePlugin : BaseUnityPlugin
 {
-    public const string Id = "com.example.ExamplePlugin";
-    public static string Name => "ExamplePlugin";
-    public static string Version => "0.1.0";
+    public const string GUID = "com.example.ExamplePlugin";
+    public const string NAME = "ExamplePlugin";
+    public const string VERSION = "0.1.0";
+    public const string AUTHORS = "AuthorName, OtherAuthor";
+    public const string REPOSITORY_URL = "https://github.com/example/ExamplePlugin";
 }
 ```
 
@@ -28,11 +30,32 @@ A `PatcherAutoPluginAttribute` also exists for BepInEx 6 preloader patchers.
 
 ## Usage
 
-Add the following to your csproj:
+First, ensure you have the NuGet source configured. You can either add a `NuGet.Config` file to your project root:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="resonite-modding" value="https://nuget-modding.resonite.net/v3/index.json" />
+  </packageSources>
+</configuration>
+```
+
+Or add this to your csproj:
+
+```xml
+<PropertyGroup>
+  <RestoreAdditionalProjectSources>
+    https://nuget-modding.resonite.net/v3/index.json;
+  </RestoreAdditionalProjectSources>
+</PropertyGroup>
+```
+
+Then add the package reference to your csproj:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Hamunii.BepInEx.AutoPlugin" Version="2.0.*" PrivateAssets="all" />
+  <PackageReference Include="BepInEx.AutoPlugin" Version="2.0.*" PrivateAssets="all" />
 </ItemGroup>
 ```
 
@@ -40,7 +63,7 @@ Mark your plugin class partial, and decorate it with the `BepInAutoPluginAttribu
 
 ```cs
 [BepInAutoPlugin]
-public partial class ExamplePlugin : BaseUnityPlugin
+public partial class ExamplePlugin : BasePlugin
 {
 }
 ```
@@ -51,9 +74,9 @@ You can also access all the properties in your code, as they are public members 
 
 ```cs
 [BepInAutoPlugin]
-public partial class ExamplePlugin : BaseUnityPlugin
+public partial class ExamplePlugin : BasePlugin
 {
-    void Awake()
+    public override void Load()
     {
         Logger.LogInfo($"Plugin {Name} version {Version} is loaded!");
     }
@@ -65,8 +88,8 @@ public partial class ExamplePlugin : BaseUnityPlugin
 AutoPlugin allows overriding any of the properties with the optional attribute arguments:
 
 ```cs
-[BepInAutoPlugin(id: "com.example.MyOverrideId", name: "My Override Name", version: "1.2.3")]
-public partial class ExamplePlugin : BaseUnityPlugin
+[BepInAutoPlugin(id: "com.example.MyOverrideId", name: "My Override Name", version: "1.2.3", authors: "Author1, Author2", link: "https://example.com")]
+public partial class ExamplePlugin : BasePlugin
 {
 }
 ```

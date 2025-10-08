@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <AssemblyName>test.TestPlugin</AssemblyName>
-    <AssemblyTitle>"Test Plugin"</AssemblyTitle>
+    <PackageId>test.TestPlugin</PackageId>
+    <Product>Test Plugin</Product>
     <Version>1.0.1-beta+69</Version>
+    <Authors>Author, OtherAuthor</Authors>
+    <RepositoryUrl>https://github.com/example/ExamplePlugin</RepositoryUrl>
     <TargetFramework>net9.0</TargetFramework>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <BepInAutoPluginStripBuildMetadata>true</BepInAutoPluginStripBuildMetadata>
@@ -11,15 +13,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference
-      Include="BepInEx.Core"
-      Version="5.4.21" />
-
+    <PackageReference Include="ResoniteModding.BepInExResoniteShim" Version="0.9.*" />
     <ProjectReference Include="../BepInEx.AutoPlugin/BepInEx.AutoPlugin.csproj"
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <Import Project="../BepInEx.AutoPlugin/Hamunii.BepInEx.AutoPlugin.props" />
+  <Import Project="../BepInEx.AutoPlugin/BepInEx.AutoPlugin.props" />
 
 </Project>

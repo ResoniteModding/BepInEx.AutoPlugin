@@ -17,6 +17,7 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
         "BepInEx.Preloader.Core.Patching." + PatcherAutoPluginAttributeName;
 
     const string BepInPluginAttribute = "BepInEx.BepInPlugin";
+    const string ResonitePluginAttribute = "BepInExResoniteShim.ResonitePlugin";
     const string PatcherPluginInfoAttribute = "BepInEx.Preloader.Core.Patching.PatcherPluginInfo";
 
     const string AttributeCode = $$"""
@@ -28,7 +29,7 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
             [global::System.Diagnostics.Conditional("CodeGeneration")]
             internal sealed class {{BepInAutoPluginAttributeName}} : global::System.Attribute
             {
-                public {{BepInAutoPluginAttributeName}}(string? id = null, string? name = null, string? version = null) {}
+                public {{BepInAutoPluginAttributeName}}(string? id = null, string? name = null, string? version = null, string? authors = null, string? link = null) {}
             }
         }
 
@@ -51,73 +52,62 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
         });
 
         // First, collect all the data we might need
-        var assemblyData = context.CompilationProvider.Select(
-            static (compilation, _) =>
-            {
-                // This might be a little faster than
-                // ForAttributeWithMetadataName for what we're doing
-                // since the attributes should always exist.
-                var attributes = compilation.Assembly.GetAttributes();
-
-                string? title = null;
-                string? informationalVersion = null;
-                string? version = null;
-
-                for (int i = 0; i < attributes.Length; i++)
+        var assemblyData = context.CompilationProvider
+            .Combine(context.AnalyzerConfigOptionsProvider)
+            .Select(
+                static (data, _) =>
                 {
-                    var attribute = attributes[i];
+                    var (compilation, options) = data;
+                    var globalOptions = options.GlobalOptions;
 
-                    var attributeClass = attribute.AttributeClass;
+                    globalOptions.TryGetValue("build_property.PackageId", out var packageId);
+                    globalOptions.TryGetValue("build_property.AssemblyName", out var assemblyName);
+                    globalOptions.TryGetValue("build_property.Product", out var product);
+                    globalOptions.TryGetValue("build_property.Version", out var version);
+                    globalOptions.TryGetValue("build_property.Authors", out var authors);
+                    globalOptions.TryGetValue("build_property.RepositoryUrl", out var repositoryUrl);
 
-                    if (attributeClass == null)
+                    // Get InformationalVersion from assembly attributes
+                    string? informationalVersion = null;
+                    var attributes = compilation.Assembly.GetAttributes();
+                    for (int i = 0; i < attributes.Length; i++)
                     {
-                        continue;
+                        var attribute = attributes[i];
+                        var attributeClass = attribute.AttributeClass;
+
+                        if (attributeClass == null)
+                            continue;
+
+                        if (attribute.ConstructorArguments.Length != 1)
+                            continue;
+
+                        string? expectedSystemNamespace = attributeClass
+                            .ContainingNamespace
+                            ?.ContainingNamespace
+                            ?.MetadataName;
+
+                        if (expectedSystemNamespace != "System")
+                            continue;
+
+                        var expectedReflectionNamespace = attributeClass
+                            .ContainingNamespace!
+                            .MetadataName;
+
+                        if (expectedReflectionNamespace != "Reflection")
+                            continue;
+
+                        var className = attributeClass.MetadataName;
+
+                        if (className == "AssemblyInformationalVersionAttribute")
+                        {
+                            informationalVersion = attribute.ConstructorArguments[0].Value as string;
+                            break;
+                        }
                     }
 
-                    if (attribute.ConstructorArguments.Length != 1)
-                        continue;
-
-                    string? expectedSystemNamespace = attributeClass
-                        .ContainingNamespace
-                        ?.ContainingNamespace
-                        ?.MetadataName;
-
-                    if (expectedSystemNamespace != "System")
-                        continue;
-
-                    var expectedReflectionNamespace = attributeClass
-                        .ContainingNamespace!
-                        .MetadataName;
-
-                    if (expectedReflectionNamespace != "Reflection")
-                        continue;
-
-                    var className = attributeClass.MetadataName;
-
-                    if (className == "AssemblyTitleAttribute")
-                    {
-                        title = attribute.ConstructorArguments[0].Value as string;
-                    }
-                    else if (className == "AssemblyInformationalVersionAttribute")
-                    {
-                        informationalVersion = attribute.ConstructorArguments[0].Value as string;
-                    }
-                    else if (className == "AssemblyVersionAttribute")
-                    {
-                        version = attribute.ConstructorArguments[0].Value as string;
-                    }
-
-                    if (title is not null && informationalVersion is not null)
-                    {
-                        // We did not check that version is not null because
-                        // we'll use informationalVersion over version anyways.
-                        break;
-                    }
+                    return (assemblyName, packageId, product, informationalVersion, version, authors, repositoryUrl);
                 }
-
-                return (compilation.AssemblyName, title, informationalVersion, version);
-            }
-        );
+            );
 
         var references = context.CompilationProvider.Select(
             static (compilation, _) => compilation.ReferencedAssemblyNames
@@ -161,13 +151,15 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
                 static (items, _) =>
                 {
                     var (
-                        ((assemblyName, title, informationalVersion, version), isBepInEx5),
+                        ((assemblyName, packageId, product, informationalVersion, version, authors, repositoryUrl), isBepInEx5),
                         shouldStripMetadata
                     ) = items;
 
-                    string projectId = assemblyName ??= "unknown";
-                    string projectName = title ?? projectId;
+                    string projectId = packageId ?? assemblyName ?? "unknown";
+                    string projectName = product ?? projectId;
                     string projectVersion = informationalVersion ?? version ?? "0.0.0.0";
+                    string projectAuthors = authors ?? "unknown";
+                    string projectLink = repositoryUrl ?? "";
 
                     if (isBepInEx5)
                     {
@@ -178,7 +170,7 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
                         projectVersion = projectVersion.Split('+')[0];
                     }
 
-                    return new PluginProps(projectId, projectName, projectVersion);
+                    return new PluginProps(projectId, projectName, projectVersion, projectAuthors, projectLink);
                 }
             );
 
@@ -186,8 +178,13 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
             GetPluginClassesWithAttribute(context, BepInAutoPluginAttributeFullName);
 
         context.RegisterSourceOutput(
-            classesWithBepInAutoPlugin.Combine(pluginProps),
-            static (context, source) => WriteClass(context, source, BepInPluginAttribute)
+            classesWithBepInAutoPlugin.Combine(pluginProps).Combine(isBepInEx5),
+            static (context, source) =>
+            {
+                var ((plugin, props), isBepInEx5) = source;
+                var attribute = isBepInEx5 ? BepInPluginAttribute : ResonitePluginAttribute;
+                WriteClass(context, (plugin, props), attribute, includeAuthorsAndLink: true);
+            }
         );
 
         IncrementalValuesProvider<PluginClass> classesWithPatcherAutoPlugin =
@@ -195,7 +192,7 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(
             classesWithPatcherAutoPlugin.Combine(pluginProps),
-            static (context, source) => WriteClass(context, source, PatcherPluginInfoAttribute)
+            static (context, source) => WriteClass(context, source, PatcherPluginInfoAttribute, includeAuthorsAndLink: false)
         );
     }
 
@@ -233,13 +230,16 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
         }
 
         var autoAttribute = ctx.Attributes.First();
+        int argCount = autoAttribute.ConstructorArguments.Length;
 
-        if (autoAttribute is null || autoAttribute.ConstructorArguments.Length != 3)
+        if (autoAttribute is null || argCount < 3 || argCount > 5)
             return default;
 
         string? id = autoAttribute.ConstructorArguments[0].Value as string;
         string? name = autoAttribute.ConstructorArguments[1].Value as string;
         string? version = autoAttribute.ConstructorArguments[2].Value as string;
+        string? authors = argCount == 4 ? autoAttribute.ConstructorArguments[3].Value as string : null;
+        string? link = argCount == 5 ? autoAttribute.ConstructorArguments[4].Value as string : null;
 
         var ns = typeSymbol.ContainingNamespace;
         var containingNamespace = ns.IsGlobalNamespace ? null : ns.ToDisplayString();
@@ -247,14 +247,15 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
         return new PluginClass(
             containingNamespace,
             typeSymbol.Name,
-            new PropOverrides(id, name, version)
+            new PropOverrides(id, name, version, authors, link)
         );
     }
 
     static void WriteClass(
         SourceProductionContext context,
         (PluginClass plugin, PluginProps pluginProps) source,
-        string attribute
+        string attribute,
+        bool includeAuthorsAndLink
     )
     {
         try
@@ -270,6 +271,8 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
             string id = SymbolDisplay.FormatLiteral(overrides.Id ?? props.Id, true);
             string name = SymbolDisplay.FormatLiteral(overrides.Name ?? props.Name, true);
             string version = SymbolDisplay.FormatLiteral(overrides.Version ?? props.Version, true);
+            string authors = SymbolDisplay.FormatLiteral(overrides.Authors ?? props.Authors, true);
+            string link = SymbolDisplay.FormatLiteral(overrides.Link ?? props.Link, true);
             string pluginClass = plugin.ClassName;
 
             if (plugin.Namespace is not null)
@@ -277,28 +280,53 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
                 sb.Append("namespace ").AppendLine(plugin.Namespace).AppendLine("{");
             }
 
-            var classStr = $$"""
-                    [global::{{attribute}}({{pluginClass}}.Id, {{name}}, {{version}})]
+            if (!includeAuthorsAndLink)
+            {
+                sb.AppendLine($$"""[global::{{attribute}}({{pluginClass}}.GUID, {{pluginClass}}.NAME, {{pluginClass}}.VERSION)]""");
+            }
+            else
+            {
+                sb.AppendLine($$"""[global::{{attribute}}({{pluginClass}}.GUID, {{pluginClass}}.NAME, {{pluginClass}}.VERSION, {{pluginClass}}.AUTHORS, {{pluginClass}}.REPOSITORY_URL)]""");
+            }
+
+            sb.AppendLine($$"""
                     partial class {{pluginClass}}
                     {
                         /// <summary>
                         /// The Id of <see cref="{{pluginClass}}"/>.
                         /// </summary>
-                        public const string Id = {{id}};
+                        public const string GUID = {{id}};
 
                         /// <summary>
-                        /// Gets the name of <see cref="{{pluginClass}}"/>.
+                        /// The name of <see cref="{{pluginClass}}"/>.
                         /// </summary>
-                        public static string Name => {{name}};
+                        public const string NAME = {{name}};
 
                         /// <summary>
-                        /// Gets the version of <see cref="{{pluginClass}}"/>.
+                        /// The version of <see cref="{{pluginClass}}"/>.
                         /// </summary>
-                        public static string Version => {{version}};
+                        public const string VERSION = {{version}};
+                """);
+
+            if (includeAuthorsAndLink)
+            {
+                sb.AppendLine($$"""
+
+                        /// <summary>
+                        /// The authors of <see cref="{{pluginClass}}"/>. Separated by commas.
+                        /// </summary>
+                        public const string AUTHORS = {{authors}};
+
+                        /// <summary>
+                        /// The link of <see cref="{{pluginClass}}"/>.
+                        /// </summary>
+                        public const string REPOSITORY_URL = {{link}};
+                """);
+            }
+
+            sb.AppendLine("""
                     }
-                """;
-
-            sb.AppendLine(classStr);
+                """);
 
             if (plugin.Namespace is not null)
             {
@@ -320,7 +348,7 @@ public sealed class AutoPluginGenerator : IIncrementalGenerator
         PropOverrides Overrides
     );
 
-    public readonly record struct PropOverrides(string? Id, string? Name, string? Version);
+    public readonly record struct PropOverrides(string? Id, string? Name, string? Version, string? Authors, string? Link);
 
-    public readonly record struct PluginProps(string Id, string Name, string Version);
+    public readonly record struct PluginProps(string Id, string Name, string Version, string Authors, string Link);
 }

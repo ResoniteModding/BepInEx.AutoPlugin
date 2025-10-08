@@ -6,7 +6,7 @@ public partial class PluginInGlobalNamespace { }
 
 namespace Plugin
 {
-    [BepInAutoPlugin(id: "my id", name: "my name", version: "my version")]
+    [PatcherAutoPlugin(id: "my id", name: "my name", version: "my version")]
     public partial class MyPluginWithOverrides { }
 
     // [PatcherAutoPlugin]
@@ -15,6 +15,12 @@ namespace Plugin
     namespace Nested
     {
         [BepInAutoPlugin]
-        public partial class NestedPlugin { }
+        public partial class NestedPlugin
+        {
+            public void Load()
+            {
+                Console.WriteLine($"Plugin {NAME} version {VERSION} is loaded!");
+            }
+        }
     }
 }

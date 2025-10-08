@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set short sha
+        id: info
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - uses: kzrnm/get-net-sdk-project-versions-action@v2
+        id: get-version
+        with:
+          proj-path: BepInEx.AutoPlugin/BepInEx.AutoPlugin.csproj
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.x
+
+      - name: Run the Cake script
+        uses: cake-build/cake-action@v1
+        with:
+          verbosity: Diagnostic
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BepInEx.AutoPlugin-${{ steps.get-version.outputs.version }}-${{ steps.info.outputs.sha_short }}
+          path: |
+            artifacts/package/release/*.nupkg
+            artifacts/bin/BepInEx.AutoPlugin/release/BepInEx.AutoPlugin.dll
