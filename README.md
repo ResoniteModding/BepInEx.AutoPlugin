@@ -12,7 +12,7 @@ BepInEx.AutoPlugin is an incremental C# source generator that takes the followin
 </PropertyGroup>
 ```
 
-And generates a partial class for your partial plugin class decorated with the `BepInAutoPluginAttribute`, decorating the generated class with the `BepInPluginAttribute` using the above properties:
+And generates a partial class for your partial plugin class decorated with the `[BepInAutoPlugin]` attribute, decorating the generated class with the `[BepInPlugin]` attribute using the above properties:
 
 ```cs
 [BepInExResoniteShim.ResonitePlugin(ExamplePlugin.GUID, ExamplePlugin.NAME, ExamplePlugin.VERSION, ExamplePlugin.AUTHORS, ExamplePlugin.REPOSITORY_URL)]
@@ -53,9 +53,15 @@ Or add this to your csproj:
 
 Then add the package reference to your csproj:
 
+> [!warning]  
+> Version `2.1.0` of this source generator requires .NET SDK 10 or higher.  
+> If you are stuck on .NET SDK 8 or 9, use version `2.0.1` instead.
+>
+> Main feature in `2.1.0` is no more generated type conflicts for consuming projects who have public access to your projects internals and are also using this source generator (e.g. a project making use of the [InternalsVisibleToAttribute](<https://learn.microsoft.com/en-us/dotnet/api/system.runtime.compilerservices.internalsvisibletoattribute>)).
+
 ```xml
 <ItemGroup>
-  <PackageReference Include="BepInEx.AutoPlugin" Version="2.0.*" PrivateAssets="all" />
+  <PackageReference Include="BepInEx.AutoPlugin" Version="2.1.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
