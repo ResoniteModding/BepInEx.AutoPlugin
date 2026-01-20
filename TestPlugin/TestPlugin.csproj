@@ -6,7 +6,7 @@
     <Version>1.0.1-beta+69</Version>
     <Authors>Author, OtherAuthor</Authors>
     <RepositoryUrl>https://github.com/example/ExamplePlugin</RepositoryUrl>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <BepInAutoPluginStripBuildMetadata>true</BepInAutoPluginStripBuildMetadata>
     <IsPackable>false</IsPackable>
